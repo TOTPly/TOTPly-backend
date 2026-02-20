@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: totp_postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_DB: ${POSTGRES_DB:-totp}
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"  # контейнер 5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  postgres_data:
