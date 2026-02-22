@@ -1,0 +1,36 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Stage 1: Users and Sessions
+model User {
+  id                   String   @id @default(uuid())
+  email                String   @unique
+  passwordHash         String
+  emailVerified        Boolean  @default(false)
+  emailVerifyCode      String?
+  emailVerifyExpires   DateTime?
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  loginCode            String?
+  loginCodeExpires     DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  sessions             Session[]
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  tokenId   String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+}
