@@ -1,8 +1,8 @@
-import { IsEmail, IsString, Length } from 'class-validator';
+import { IsString, Length } from 'class-validator';
 
 export class VerifyLoginDto {
-  @IsEmail()
-  email: string;
+  @IsString()
+  tempToken: string;
 
   @IsString()
   @Length(6, 6)

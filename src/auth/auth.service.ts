@@ -23,7 +23,7 @@ export class AuthService {
 
     try {
       const verificationCode = this.generateVerificationCode();
-      const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
       await this.prisma.user.create({
         data: {
@@ -53,7 +53,7 @@ export class AuthService {
     if (!match) throw new UnauthorizedException('Invalid credentials');
 
     const loginCode = this.generateVerificationCode();
-    const loginCodeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const loginCodeExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -65,10 +65,28 @@ export class AuthService {
 
     await this.emailService.sendLoginCode(email, loginCode);
 
-    return { message: 'Login code sent to your email. Please verify to complete login.' };
+    // Создаем временный токен для верификации
+    const tempToken = this.jwtService.sign(
+      { email, purpose: 'login-verification' },
+      { expiresIn: '10m' },
+    );
+
+    return { requireEmailCode: true, tempToken };
   }
 
-  async verifyLogin(email: string, code: string, userAgent?: string) {
+  async verifyLogin(tempToken: string, code: string, userAgent?: string) {
+    let email: string;
+    
+    try {
+      const payload: any = this.jwtService.verify(tempToken, { secret: process.env.JWT_SECRET });
+      if (payload.purpose !== 'login-verification') {
+        throw new UnauthorizedException('Invalid token');
+      }
+      email = payload.email;
+    } catch {
+      throw new UnauthorizedException('Invalid or expired token');
+    }
+
     const user = await this.prisma.user.findUnique({ where: { email } });
     
     if (!user) {
@@ -183,7 +201,7 @@ export class AuthService {
     }
 
     const verificationCode = this.generateVerificationCode();
-    const verificationExpires = new Date(Date.now() + 15 * 60 * 1000);
+    const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     await this.prisma.user.update({
       where: { id: user.id },

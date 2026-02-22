@@ -27,7 +27,7 @@ export class AuthController {
   @Post('verify-login')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   async verifyLogin(@Body() dto: VerifyLoginDto, @Req() req: Request) {
-    return this.authService.verifyLogin(dto.email, dto.code, req.headers['user-agent']);
+    return this.authService.verifyLogin(dto.tempToken, dto.code, req.headers['user-agent']);
   }
 
   @Post('verify-email')
