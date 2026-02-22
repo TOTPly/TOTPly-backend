@@ -28,6 +28,25 @@ export class EmailService {
     }
   }
 
+  async sendLoginCode(email: string, code: string) {
+    try {
+      await this.resend.emails.send({
+        from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+        to: email,
+        subject: 'Your login code - TOTPly',
+        html: `
+          <h1>Login Verification</h1>
+          <p>Your login code is: <strong>${code}</strong></p>
+          <p>This code will expire in 15 minutes.</p>
+          <p>If you didn't request this, please secure your account immediately.</p>
+        `,
+      });
+    } catch (error) {
+      console.error('Failed to send email:', error);
+      throw new Error('Failed to send login code email');
+    }
+  }
+
   async sendPasswordResetEmail(email: string, token: string) {
     try {
       await this.resend.emails.send({

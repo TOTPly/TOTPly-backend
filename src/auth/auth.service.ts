@@ -18,14 +18,14 @@ export class AuthService {
     return crypto.randomInt(100000, 999999).toString();
   }
 
-  async register(email: string, password: string, userAgent?: string) {
+  async register(email: string, password: string) {
     const hashed = await bcrypt.hash(password, 10);
 
     try {
       const verificationCode = this.generateVerificationCode();
       const verificationExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      const user = await this.prisma.user.create({
+      await this.prisma.user.create({
         data: {
           email,
           passwordHash: hashed,
@@ -36,26 +36,7 @@ export class AuthService {
 
       await this.emailService.sendVerificationEmail(email, verificationCode);
 
-      const sessionId = uuidv4();
-      const tokenId = uuidv4();
-      const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
-
-      await this.prisma.session.create({
-        data: {
-          id: sessionId,
-          userId: user.id,
-          tokenId,
-          expiresAt,
-          userAgent,
-        },
-      });
-
-      const token = this.jwtService.sign(
-        { sub: user.id, email: user.email, sessionId },
-        { expiresIn: Number(process.env.JWT_EXPIRES), jwtid: tokenId },
-      );
-
-      return { token, message: 'Registration successful. Please check your email for verification code.' };
+      return { message: 'Registration successful. Please check your email for verification code.' };
     } catch (error: any) {
       if (error.code === 'P2002') {
         throw new ConflictException('Email already registered');
@@ -64,16 +45,55 @@ export class AuthService {
     }
   }
 
-  async login(email: string, password: string, userAgent?: string) {
+  async login(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) throw new UnauthorizedException('Invalid credentials');
 
-    if (!user.emailVerified) {
-      throw new UnauthorizedException('Email not verified');
+    const loginCode = this.generateVerificationCode();
+    const loginCodeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        loginCode,
+        loginCodeExpires,
+      },
+    });
+
+    await this.emailService.sendLoginCode(email, loginCode);
+
+    return { message: 'Login code sent to your email. Please verify to complete login.' };
+  }
+
+  async verifyLogin(email: string, code: string, userAgent?: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
     }
+
+    if (!user.loginCode || !user.loginCodeExpires) {
+      throw new BadRequestException('No login code found. Please login first.');
+    }
+
+    if (user.loginCodeExpires < new Date()) {
+      throw new BadRequestException('Login code expired. Please login again.');
+    }
+
+    if (user.loginCode !== code) {
+      throw new BadRequestException('Invalid login code');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        loginCode: null,
+        loginCodeExpires: null,
+      },
+    });
 
     const sessionId = uuidv4();
     const tokenId = uuidv4();
@@ -97,7 +117,7 @@ export class AuthService {
     return { token };
   }
 
-  async verifyEmail(email: string, code: string) {
+  async verifyEmail(email: string, code: string, userAgent?: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     
     if (!user) {
@@ -129,7 +149,26 @@ export class AuthService {
       },
     });
 
-    return { message: 'Email verified successfully' };
+    const sessionId = uuidv4();
+    const tokenId = uuidv4();
+    const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
+
+    await this.prisma.session.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        tokenId,
+        expiresAt,
+        userAgent,
+      },
+    });
+
+    const token = this.jwtService.sign(
+      { sub: user.id, email: user.email, sessionId },
+      { expiresIn: Number(process.env.JWT_EXPIRES), jwtid: tokenId },
+    );
+
+    return { token };
   }
 
   async resendVerification(email: string) {

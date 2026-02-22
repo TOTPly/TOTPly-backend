@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { VerifyLoginDto } from './dto/verify-login.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
@@ -13,20 +14,26 @@ export class AuthController {
 
   @Post('register')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async register(@Body() dto: RegisterDto, @Req() req: Request) {
-    return this.authService.register(dto.email, dto.password, req.headers['user-agent']);
+  async register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto.email, dto.password);
   }
 
   @Post('login')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async login(@Body() dto: LoginDto, @Req() req: Request) {
-    return this.authService.login(dto.email, dto.password, req.headers['user-agent']);
+  async login(@Body() dto: LoginDto) {
+    return this.authService.login(dto.email, dto.password);
+  }
+
+  @Post('verify-login')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  async verifyLogin(@Body() dto: VerifyLoginDto, @Req() req: Request) {
+    return this.authService.verifyLogin(dto.email, dto.code, req.headers['user-agent']);
   }
 
   @Post('verify-email')
   @Throttle({ default: { limit: 10, ttl: 60000 } })
-  async verifyEmail(@Body() dto: VerifyEmailDto) {
-    return this.authService.verifyEmail(dto.email, dto.code);
+  async verifyEmail(@Body() dto: VerifyEmailDto, @Req() req: Request) {
+    return this.authService.verifyEmail(dto.email, dto.code, req.headers['user-agent']);
   }
 
   @Post('resend-verification')
