@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -14,28 +14,37 @@ export class AuthService {
   async register(email: string, password: string, userAgent?: string) {
     const hashed = await bcrypt.hash(password, 10);
 
-    const user = await this.prisma.user.create({
-      data: { email, passwordHash: hashed },
-    });
+    try {
+      const user = await this.prisma.user.create({
+        data: { email, passwordHash: hashed },
+      });
 
-    const sessionId = uuidv4();
-    const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
+      const sessionId = uuidv4();
+      const tokenId = uuidv4();
+      const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
 
-    await this.prisma.session.create({
-      data: {
-        id: sessionId,
-        userId: user.id,
-        expiresAt,
-        userAgent,
-      },
-    });
+      await this.prisma.session.create({
+        data: {
+          id: sessionId,
+          userId: user.id,
+          tokenId,
+          expiresAt,
+          userAgent,
+        },
+      });
 
-    const token = this.jwtService.sign(
-      { sub: user.id, email: user.email, sessionId },
-      { expiresIn: Number(process.env.JWT_EXPIRES) },
-    );
+      const token = this.jwtService.sign(
+        { sub: user.id, email: user.email, sessionId },
+        { expiresIn: Number(process.env.JWT_EXPIRES), jwtid: tokenId },
+      );
 
-    return { token };
+      return { token };
+    } catch (error: any) {
+      if (error.code === 'P2002') {
+        throw new ConflictException('Email already registered');
+      }
+      throw error;
+    }
   }
 
   async login(email: string, password: string, userAgent?: string) {
@@ -50,12 +59,14 @@ export class AuthService {
     }
 
     const sessionId = uuidv4();
+    const tokenId = uuidv4();
     const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
 
     await this.prisma.session.create({
       data: {
         id: sessionId,
         userId: user.id,
+        tokenId,
         expiresAt,
         userAgent,
       },
@@ -63,7 +74,7 @@ export class AuthService {
 
     const token = this.jwtService.sign(
       { sub: user.id, email: user.email, sessionId },
-      { expiresIn: Number(process.env.JWT_EXPIRES) },
+      { expiresIn: Number(process.env.JWT_EXPIRES), jwtid: tokenId },
     );
 
     return { token };
