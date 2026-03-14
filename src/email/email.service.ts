@@ -18,7 +18,7 @@ export class EmailService {
         html: `
           <h1>Email Verification</h1>
           <p>Your verification code is: <strong>${code}</strong></p>
-          <p>This code will expire in 15 minutes.</p>
+          <p>This code will expire in 10 minutes.</p>
           <p>If you didn't request this, please ignore this email.</p>
         `,
       });
@@ -37,7 +37,7 @@ export class EmailService {
         html: `
           <h1>Login Verification</h1>
           <p>Your login code is: <strong>${code}</strong></p>
-          <p>This code will expire in 15 minutes.</p>
+          <p>This code will expire in 10 minutes.</p>
           <p>If you didn't request this, please secure your account immediately.</p>
         `,
       });

@@ -17,6 +17,10 @@ export class JwtGuard implements CanActivate {
     try {
       const payload: any = this.jwtService.verify(token, { secret: process.env.JWT_SECRET });
 
+      if (payload.type !== 'session') {
+        throw new UnauthorizedException();
+      }
+
       const session = await this.prisma.session.findUnique({
         where: { id: payload.sessionId },
       });

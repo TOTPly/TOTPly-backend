@@ -67,7 +67,7 @@ export class AuthService {
 
     // Создаем временный токен для верификации
     const tempToken = this.jwtService.sign(
-      { email, purpose: 'login-verification' },
+      { email, type: 'temp', purpose: 'login-verification' },
       { expiresIn: '10m' },
     );
 
@@ -113,6 +113,8 @@ export class AuthService {
       },
     });
 
+    await this.cleanupExpiredSessions(user.id);
+
     const sessionId = uuidv4();
     const tokenId = uuidv4();
     const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
@@ -128,7 +130,7 @@ export class AuthService {
     });
 
     const token = this.jwtService.sign(
-      { sub: user.id, email: user.email, sessionId },
+      { sub: user.id, email: user.email, sessionId, type: 'session' },
       { expiresIn: Number(process.env.JWT_EXPIRES), jwtid: tokenId },
     );
 
@@ -167,6 +169,8 @@ export class AuthService {
       },
     });
 
+    await this.cleanupExpiredSessions(user.id);
+
     const sessionId = uuidv4();
     const tokenId = uuidv4();
     const expiresAt = new Date(Date.now() + Number(process.env.JWT_EXPIRES) * 1000);
@@ -182,11 +186,16 @@ export class AuthService {
     });
 
     const token = this.jwtService.sign(
-      { sub: user.id, email: user.email, sessionId },
+      { sub: user.id, email: user.email, sessionId, type: 'session' },
       { expiresIn: Number(process.env.JWT_EXPIRES), jwtid: tokenId },
     );
 
     return { token };
+  }
+
+  async logout(sessionId: string) {
+    await this.prisma.session.delete({ where: { id: sessionId } });
+    return { message: 'Logged out successfully' };
   }
 
   async resendVerification(email: string) {
@@ -214,5 +223,11 @@ export class AuthService {
     await this.emailService.sendVerificationEmail(email, verificationCode);
 
     return { message: 'Verification code sent successfully' };
+  }
+
+  private async cleanupExpiredSessions(userId: string) {
+    await this.prisma.session.deleteMany({
+      where: { userId, expiresAt: { lt: new Date() } },
+    });
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Req } from '@nestjs/common';
+import { Controller, Post, Body, Req, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,7 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyLoginDto } from './dto/verify-login.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { Throttle } from '@nestjs/throttler';
+import { JwtGuard } from './jwt.guard';
 import type { Request } from 'express';
 
 @Controller('auth')
@@ -40,5 +41,12 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto.email);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtGuard)
+  async logout(@Req() req: Request) {
+    const user = req['user'] as any;
+    return this.authService.logout(user.sessionId);
   }
 }
