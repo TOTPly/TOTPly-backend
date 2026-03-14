@@ -12,7 +12,7 @@ export class TotpService {
   ) {}
 
   async create(userId: string, dto: CreateTotpDto) {
-    const secretBuffer = Buffer.from(dto.secret, 'base64');
+    const secretBuffer = Buffer.from(dto.secret, 'utf-8');
     const encrypted = this.cryptoService.encrypt(secretBuffer);
 
     const entry = await this.prisma.totpEntry.create({
@@ -78,7 +78,7 @@ export class TotpService {
       id: entry.id,
       issuer: entry.issuer,
       accountName: entry.accountName,
-      secret: secret.toString('base64'),
+      secret: secret.toString('utf-8'),
       algorithm: entry.algorithm,
       digits: entry.digits,
       period: entry.period,
