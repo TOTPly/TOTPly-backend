@@ -23,6 +23,7 @@ model User {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
   sessions             Session[]
+  totpEntries          TotpEntry[]
 }
 
 model Session {
@@ -33,4 +34,25 @@ model Session {
   expiresAt DateTime
   createdAt DateTime @default(now())
   userAgent String?
+}
+
+model TotpEntry {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issuer          String
+  accountName     String
+  encryptedSecret Bytes
+  iv              Bytes
+  authTag         Bytes
+  encryptedDek    Bytes
+  dekIv           Bytes
+  dekAuthTag      Bytes
+  algorithm       String   @default("SHA1")
+  digits          Int      @default(6)
+  period          Int      @default(30)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
 }
