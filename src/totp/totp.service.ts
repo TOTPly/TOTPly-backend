@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CryptoService } from '../crypto/crypto.service';
+import { TotpCodeService } from './totp-code.service';
+import { UriParserService } from './uri-parser.service';
 import { CreateTotpDto } from './dto/create-totp.dto';
 import { UpdateTotpDto } from './dto/update-totp.dto';
 
@@ -9,6 +11,8 @@ export class TotpService {
   constructor(
     private prisma: PrismaService,
     private cryptoService: CryptoService,
+    private totpCodeService: TotpCodeService,
+    private uriParserService: UriParserService,
   ) {}
 
   async create(userId: string, dto: CreateTotpDto) {
@@ -64,21 +68,13 @@ export class TotpService {
 
   async findOne(userId: string, id: string) {
     const entry = await this.getOwnedEntry(userId, id);
-
-    const secret = this.cryptoService.decrypt({
-      encryptedSecret: entry.encryptedSecret,
-      iv: entry.iv,
-      authTag: entry.authTag,
-      encryptedDek: entry.encryptedDek,
-      dekIv: entry.dekIv,
-      dekAuthTag: entry.dekAuthTag,
-    });
+    const secret = this.decryptSecret(entry);
 
     return {
       id: entry.id,
       issuer: entry.issuer,
       accountName: entry.accountName,
-      secret: secret.toString('utf-8'),
+      secret,
       algorithm: entry.algorithm,
       digits: entry.digits,
       period: entry.period,
@@ -115,6 +111,74 @@ export class TotpService {
     await this.getOwnedEntry(userId, id);
     await this.prisma.totpEntry.delete({ where: { id } });
     return { message: 'Entry deleted' };
+  }
+
+  async generateCode(userId: string, id: string) {
+    const entry = await this.getOwnedEntry(userId, id);
+    const secret = this.decryptSecret(entry);
+    return this.totpCodeService.generate(secret, entry.algorithm, entry.digits, entry.period);
+  }
+
+  async generateAllCodes(userId: string) {
+    const entries = await this.prisma.totpEntry.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return Promise.all(
+      entries.map(async (entry) => {
+        const secret = this.decryptSecret(entry);
+        const codeData = await this.totpCodeService.generate(secret, entry.algorithm, entry.digits, entry.period);
+        return {
+          id: entry.id,
+          issuer: entry.issuer,
+          accountName: entry.accountName,
+          ...codeData,
+        };
+      }),
+    );
+  }
+
+  async importFromUri(userId: string, uri: string) {
+    const parsed = this.uriParserService.parse(uri);
+    return this.create(userId, {
+      issuer: parsed.issuer,
+      accountName: parsed.accountName,
+      secret: parsed.secret,
+      algorithm: parsed.algorithm,
+      digits: parsed.digits,
+      period: parsed.period,
+    });
+  }
+
+  async importBatch(userId: string, uris: string[]) {
+    return Promise.all(uris.map((uri) => this.importFromUri(userId, uri)));
+  }
+
+  async getUri(userId: string, id: string) {
+    const entry = await this.getOwnedEntry(userId, id);
+    const secret = this.decryptSecret(entry);
+    return {
+      uri: this.uriParserService.build({
+        issuer: entry.issuer,
+        accountName: entry.accountName,
+        secret,
+        algorithm: entry.algorithm,
+        digits: entry.digits,
+        period: entry.period,
+      }),
+    };
+  }
+
+  private decryptSecret(entry: { encryptedSecret: Uint8Array; iv: Uint8Array; authTag: Uint8Array; encryptedDek: Uint8Array; dekIv: Uint8Array; dekAuthTag: Uint8Array }): string {
+    return this.cryptoService.decrypt({
+      encryptedSecret: entry.encryptedSecret,
+      iv: entry.iv,
+      authTag: entry.authTag,
+      encryptedDek: entry.encryptedDek,
+      dekIv: entry.dekIv,
+      dekAuthTag: entry.dekAuthTag,
+    }).toString('utf-8');
   }
 
   private async getOwnedEntry(userId: string, id: string) {
