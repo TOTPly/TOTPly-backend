@@ -8,6 +8,11 @@ generator client {
   provider = "prisma-client-js"
 }
 
+generator erd {
+  provider = "prisma-erd-generator"
+  output   = "../erd.svg"
+}
+
 // Stage 1: Users and Sessions
 model User {
   id                   String   @id @default(uuid())
