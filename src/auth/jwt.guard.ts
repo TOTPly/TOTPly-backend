@@ -9,9 +9,7 @@ export class JwtGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
     const authHeader = req.headers['authorization'];
-    if (!authHeader) throw new UnauthorizedException();
-
-    const token = authHeader.split(' ')[1];
+    const token = authHeader?.split(' ')[1] || req.query?.token;
     if (!token) throw new UnauthorizedException();
 
     try {

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Req, Res, Sse, UseGuards, MessageEvent } from '@nestjs/common';
 import { TotpService } from './totp.service';
 import { CreateTotpDto } from './dto/create-totp.dto';
 import { UpdateTotpDto } from './dto/update-totp.dto';
@@ -8,6 +8,7 @@ import { JwtGuard } from '../auth/jwt.guard';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import * as QRCode from 'qrcode';
+import { Observable, interval, switchMap, map } from 'rxjs';
 
 @Controller('totp')
 @UseGuards(JwtGuard)
@@ -31,6 +32,15 @@ export class TotpController {
   async getAllCodes(@Req() req: Request) {
     const user = req['user'] as any;
     return this.totpService.generateAllCodes(user.sub);
+  }
+
+  @Sse('codes/stream')
+  codesStream(@Req() req: Request): Observable<MessageEvent> {
+    const user = req['user'] as any;
+    return interval(2000).pipe(
+      switchMap(() => this.totpService.generateAllCodes(user.sub)),
+      map((codes) => ({ data: codes }) as MessageEvent),
+    );
   }
 
   @Get(':id')
