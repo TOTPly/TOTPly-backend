@@ -2,7 +2,10 @@
   "name": "TOTPly-backend",
   "version": "0.0.1",
   "description": "",
-  "author": "",
+  "author": "Matvei Khavankin",
+  "engines": {
+    "node": ">=22"
+  },
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
