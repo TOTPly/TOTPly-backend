@@ -43,7 +43,7 @@ export class CryptoService {
     };
   }
 
-  async decrypt(payload: EncryptedPayload, userId: string, keyVersion: number = 2): Promise<Buffer> {
+  async decrypt(payload: EncryptedPayload, userId: string, keyVersion: number = 1): Promise<Buffer> {
     let kek: Buffer;
     if (keyVersion === 1) {
       kek = this.getMasterKey();
