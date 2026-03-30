@@ -5,11 +5,14 @@ import { AuthModule } from './auth/auth.module';
 import { CryptoModule } from './crypto/crypto.module';
 import { TotpModule } from './totp/totp.module';
 import { ThrottlerModule } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { GraphQLModule } from '@nestjs/graphql';
 import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { CacheModule } from '@nestjs/cache-manager';
 import { GqlThrottlerGuard } from './common/gql-throttler.guard';
 import { ComplexityPlugin } from './graphql/complexity.plugin';
+import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
+import { EtagInterceptor } from './common/interceptors/etag.interceptor';
 
 @Module({
   imports: [
@@ -17,6 +20,11 @@ import { ComplexityPlugin } from './graphql/complexity.plugin';
       ttl: 60000,
       limit: 10,
     }]),
+    CacheModule.register({
+      isGlobal: true,
+      ttl: 10000,
+      max: 200,
+    }),
     GraphQLModule.forRoot<ApolloDriverConfig>({
       driver: ApolloDriver,
       autoSchemaFile: true,
@@ -35,6 +43,14 @@ import { ComplexityPlugin } from './graphql/complexity.plugin';
     {
       provide: APP_GUARD,
       useClass: GqlThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheControlInterceptor,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: EtagInterceptor,
     },
     ComplexityPlugin,
   ],
