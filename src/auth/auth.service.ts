@@ -1,6 +1,7 @@
-import { Injectable, UnauthorizedException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { InfisicalService } from '../infisical/infisical.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,6 +13,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    private infisicalService: InfisicalService,
   ) {}
 
   private generateVerificationCode(): string {
@@ -25,7 +27,7 @@ export class AuthService {
       const verificationCode = this.generateVerificationCode();
       const verificationExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-      await this.prisma.user.create({
+      const user = await this.prisma.user.create({
         data: {
           email,
           passwordHash: hashed,
@@ -33,6 +35,13 @@ export class AuthService {
           emailVerifyExpires: verificationExpires,
         },
       });
+
+      try {
+        await this.infisicalService.createUserKey(user.id);
+      } catch {
+        await this.prisma.user.delete({ where: { id: user.id } });
+        throw new ServiceUnavailableException('Unable to complete registration. Please try again.');
+      }
 
       await this.emailService.sendVerificationEmail(email, verificationCode);
 

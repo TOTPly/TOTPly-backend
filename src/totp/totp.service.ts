@@ -17,7 +17,7 @@ export class TotpService {
 
   async create(userId: string, dto: CreateTotpDto) {
     const secretBuffer = Buffer.from(dto.secret, 'utf-8');
-    const encrypted = this.cryptoService.encrypt(secretBuffer);
+    const encrypted = await this.cryptoService.encrypt(secretBuffer, userId);
 
     const entry = await this.prisma.totpEntry.create({
       data: {
@@ -33,6 +33,7 @@ export class TotpService {
         algorithm: dto.algorithm ?? 'SHA1',
         digits: dto.digits ?? 6,
         period: dto.period ?? 30,
+        keyVersion: 2,
       },
     });
 
@@ -68,7 +69,7 @@ export class TotpService {
 
   async findOne(userId: string, id: string) {
     const entry = await this.getOwnedEntry(userId, id);
-    const secret = this.decryptSecret(entry);
+    const secret = await this.decryptSecret(entry, userId);
 
     return {
       id: entry.id,
@@ -115,7 +116,7 @@ export class TotpService {
 
   async generateCode(userId: string, id: string) {
     const entry = await this.getOwnedEntry(userId, id);
-    const secret = this.decryptSecret(entry);
+    const secret = await this.decryptSecret(entry, userId);
     return this.totpCodeService.generate(secret, entry.algorithm, entry.digits, entry.period);
   }
 
@@ -127,7 +128,7 @@ export class TotpService {
 
     return Promise.all(
       entries.map(async (entry) => {
-        const secret = this.decryptSecret(entry);
+        const secret = await this.decryptSecret(entry, userId);
         const codeData = await this.totpCodeService.generate(secret, entry.algorithm, entry.digits, entry.period);
         return {
           id: entry.id,
@@ -157,7 +158,7 @@ export class TotpService {
 
   async getUri(userId: string, id: string) {
     const entry = await this.getOwnedEntry(userId, id);
-    const secret = this.decryptSecret(entry);
+    const secret = await this.decryptSecret(entry, userId);
     return {
       uri: this.uriParserService.build({
         issuer: entry.issuer,
@@ -170,15 +171,23 @@ export class TotpService {
     };
   }
 
-  private decryptSecret(entry: { encryptedSecret: Uint8Array; iv: Uint8Array; authTag: Uint8Array; encryptedDek: Uint8Array; dekIv: Uint8Array; dekAuthTag: Uint8Array }): string {
-    return this.cryptoService.decrypt({
-      encryptedSecret: entry.encryptedSecret,
-      iv: entry.iv,
-      authTag: entry.authTag,
-      encryptedDek: entry.encryptedDek,
-      dekIv: entry.dekIv,
-      dekAuthTag: entry.dekAuthTag,
-    }).toString('utf-8');
+  private async decryptSecret(
+    entry: { encryptedSecret: Uint8Array; iv: Uint8Array; authTag: Uint8Array; encryptedDek: Uint8Array; dekIv: Uint8Array; dekAuthTag: Uint8Array; keyVersion: number },
+    userId: string,
+  ): Promise<string> {
+    const buf = await this.cryptoService.decrypt(
+      {
+        encryptedSecret: entry.encryptedSecret,
+        iv: entry.iv,
+        authTag: entry.authTag,
+        encryptedDek: entry.encryptedDek,
+        dekIv: entry.dekIv,
+        dekAuthTag: entry.dekAuthTag,
+      },
+      userId,
+      entry.keyVersion,
+    );
+    return buf.toString('utf-8');
   }
 
   private async getOwnedEntry(userId: string, id: string) {

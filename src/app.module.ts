@@ -13,6 +13,8 @@ import { GqlThrottlerGuard } from './common/gql-throttler.guard';
 import { ComplexityPlugin } from './graphql/complexity.plugin';
 import { CacheControlInterceptor } from './common/interceptors/cache-control.interceptor';
 import { EtagInterceptor } from './common/interceptors/etag.interceptor';
+import { InfisicalModule } from './infisical/infisical.module';
+import { KeyMigrationService } from './migration/key-migration.service';
 
 @Module({
   imports: [
@@ -34,6 +36,7 @@ import { EtagInterceptor } from './common/interceptors/etag.interceptor';
       path: '/graphql',
       context: ({ req }) => ({ req }),
     }),
+    InfisicalModule,
     PrismaModule,
     CryptoModule,
     AuthModule,
@@ -54,6 +57,7 @@ import { EtagInterceptor } from './common/interceptors/etag.interceptor';
       useClass: EtagInterceptor,
     },
     ComplexityPlugin,
+    KeyMigrationService,
   ],
 })
 export class AppModule {}
